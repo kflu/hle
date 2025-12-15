@@ -11,9 +11,26 @@ from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm_asyncio
 from datasets import load_dataset
 
-client = AsyncOpenAI(timeout=300.0, max_retries=1)
+import httpx
 
-JUDGE_PROMPT = """Judge whether the following [response] to [question] is correct or not based on the precise and unambiguous [correct_answer] below.
+# client = AsyncOpenAI(timeout=300.0, max_retries=1)
+
+# Create custom httpx client that allows localhost connections
+http_client = httpx.AsyncClient(
+    timeout=600.0,
+    limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+    transport=httpx.AsyncHTTPTransport(retries=1)
+)
+
+client = AsyncOpenAI(
+    timeout=600.0,
+    max_retries=1,
+    api_key="token-abc123",
+    base_url='http://127.0.0.1:8000/v1',
+    http_client=http_client
+)
+
+JUDGE_PROMPT = r"""Judge whether the following [response] to [question] is correct or not based on the precise and unambiguous [correct_answer] below.
 
 [question]: {question}
 

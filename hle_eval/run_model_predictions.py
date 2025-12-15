@@ -5,8 +5,23 @@ import asyncio
 from datasets import load_dataset
 from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm_asyncio
+import unittest.mock as mock
+import httpx
 
-client = AsyncOpenAI(timeout=600.0, max_retries=1)
+# Create custom httpx client that allows localhost connections
+http_client = httpx.AsyncClient(
+    timeout=600.0,
+    limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+    transport=httpx.AsyncHTTPTransport(retries=1)
+)
+
+client = AsyncOpenAI(
+    timeout=600.0,
+    max_retries=1,
+    api_key="token-abc123",
+    base_url='http://127.0.0.1:8000/v1',
+    http_client=http_client
+)
 
 SYSTEM_PROMPT = "Your response should be in the following format:\nExplanation: {your explanation for your answer choice}\nAnswer: {your chosen answer}\nConfidence: {your confidence score between 0% and 100% for your answer}"
 
