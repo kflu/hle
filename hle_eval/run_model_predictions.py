@@ -15,13 +15,18 @@ http_client = httpx.AsyncClient(
     transport=httpx.AsyncHTTPTransport(retries=1)
 )
 
-client = AsyncOpenAI(
-    timeout=600.0,
-    max_retries=1,
-    api_key="token-abc123",
-    base_url='http://127.0.0.1:8000/v1',
-    http_client=http_client
-)
+def get_client():
+    kwargs = {}
+    if args.base_url:
+        kwargs["base_url"] = args.base_url
+
+    client = AsyncOpenAI(
+        timeout=600.0,
+        max_retries=1,
+        http_client=http_client,
+        **kwargs,
+    )
+    return client
 
 SYSTEM_PROMPT = "Your response should be in the following format:\nExplanation: {your explanation for your answer choice}\nAnswer: {your chosen answer}\nConfidence: {your confidence score between 0% and 100% for your answer}"
 
@@ -46,7 +51,7 @@ def format_message(question):
 async def attempt_question(question):
     messages = format_message(question)
     try:
-        response = await client.chat.completions.create(
+        response = await get_client().chat.completions.create(
             model=args.model,
             # temperature=args.temperature if "o1" not in args.model else None,
             max_completion_tokens=args.max_completion_tokens,
@@ -125,5 +130,6 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", type=float, default=0.0, help="Temperature for sampling.")
     parser.add_argument("--num_workers", type=int, default=10, help="Async semaphore size. This depends on your rate limit.")
     parser.add_argument("--max_samples", type=int, default=None, help="Limit evaluation to first N samples")
+    parser.add_argument("--base_url", default=None, help="base url of the service (e.g. http://127.0.0.1:8000/v1)")
     args = parser.parse_args()
     main(args)
