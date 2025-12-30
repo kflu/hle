@@ -8,11 +8,22 @@ from tqdm.asyncio import tqdm_asyncio
 import unittest.mock as mock
 import httpx
 
+async def log_request(request: httpx.Request):
+    print(f"\nRequest event hook: {request.method} {request.url} - Waiting for response \n{request.content}")
+
+async def log_response(response: httpx.Response):
+    request = response.request
+    print(f"\nResponse event hook: {request.method} {request.url} - Status {response.status_code} \n {response.content}")
+
 # Create custom httpx client that allows localhost connections
 http_client = httpx.AsyncClient(
     timeout=600.0,
     limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
-    transport=httpx.AsyncHTTPTransport(retries=1)
+    transport=httpx.AsyncHTTPTransport(retries=1),
+    # event_hooks={
+    #     "request": [log_request],
+    #     "response": [log_response],
+    # }
 )
 
 def get_client():
@@ -33,9 +44,17 @@ SYSTEM_PROMPT = "Your response should be in the following format:\nExplanation: 
 def format_message(question):
     question_text = question['question']
 
-    text_content = dict(type="text", text=question_text)
+    if args.use_responses_api:
+        text_content = dict(type="input_text", text=question_text)
+    else:
+        text_content = dict(type="text", text=question_text)
+
     if question['image']: # "" if not multi-modal
-        image_content = dict(type="image_url", image_url=dict(url=question['image']))
+        if args.use_responses_api:
+            image_content = dict(type="input_image", image_url=question['image'], detail="auto")
+        else:
+            image_content = dict(type="image_url", image_url=dict(url=question['image']))
+
         content = [text_content, image_content]
     else:
         content = [text_content]
@@ -50,18 +69,43 @@ def format_message(question):
 
 async def attempt_question(question):
     messages = format_message(question)
+
     try:
-        response = await get_client().chat.completions.create(
-            model=args.model,
-            # temperature=args.temperature if "o1" not in args.model else None,
-            max_completion_tokens=args.max_completion_tokens,
-            messages=messages,
-            stream=False,
-        ) 
-        content = response.choices[0].message.content
-        tokens = json.loads(response.usage.json())
+        if args.use_responses_api:
+            response = await get_client().responses.create(
+                model=args.model,
+                input=messages,
+                stream=False,
+                max_output_tokens=args.max_completion_tokens,
+            )
+
+            content = None
+            for res in response.output:
+                match res.to_dict():
+                    case {
+                        "type": "message", 
+                        "status": "completed", 
+                        "role": "assistant", 
+                        "content": [{"type": "output_text", "text": content}, *_],
+                    }:
+                        break
+
+            assert content is not None, "Did not find response text"
+            tokens = {}  # TODO
+        else:
+            response = await get_client().chat.completions.create(
+                model=args.model,
+                # temperature=args.temperature if "o1" not in args.model else None,
+                max_completion_tokens=args.max_completion_tokens,
+                messages=messages,
+                stream=False,
+            ) 
+            content = response.choices[0].message.content
+            tokens = json.loads(response.usage.json())
     except Exception as e:
         print("Error:", e)
+        if args.eager_raise:
+            raise
         return None
     
     if content is None: # failed
@@ -71,6 +115,8 @@ async def attempt_question(question):
 
 
 async def attempt_all(questions):
+    if args.exclude_questions_with_image:
+        questions = [q for q in questions if not q['image']]
     async def bound_func(question):
         async with semaphore:
             content = await attempt_question(question)
@@ -131,5 +177,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_workers", type=int, default=10, help="Async semaphore size. This depends on your rate limit.")
     parser.add_argument("--max_samples", type=int, default=None, help="Limit evaluation to first N samples")
     parser.add_argument("--base_url", default=None, help="base url of the service (e.g. http://127.0.0.1:8000/v1)")
+    parser.add_argument("--eager_raise", default=None, action="store_true", help="[debug] raise eagerly on exception")
+    parser.add_argument("--use_responses_api", default=None, action="store_true", help="use responses API")
+    parser.add_argument("--exclude_questions_with_image", default=None, action="store_true", help="do not eval MM questions")
     args = parser.parse_args()
     main(args)

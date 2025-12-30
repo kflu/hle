@@ -1,3 +1,15 @@
+r"""
+OPENAI_API_KEY=${OPENAI_API_KEY?} \
+python -m pdb hle_eval/run_judge_results.py \
+    --predictions ${EVAL_RESULT_JSON?} \
+    --dataset cais/hle  \
+    --judge ${JUDGE_MODEL:=o3-mini-2025-01-31} \
+    # END
+
+
+Export BASE_URL if judge using custom model provider
+"""
+
 import os
 import json
 import copy
@@ -22,12 +34,18 @@ http_client = httpx.AsyncClient(
     transport=httpx.AsyncHTTPTransport(retries=1)
 )
 
+kwargs = {}
+if base_url := os.environ.get("BASE_URL", None):
+    kwargs = dict(
+        base_url=base_url,
+        http_client=http_client,
+    )
+
 client = AsyncOpenAI(
     timeout=600.0,
     max_retries=1,
-    api_key="token-abc123",
-    base_url='http://127.0.0.1:8000/v1',
-    http_client=http_client
+    api_key=os.environ.get("OPENAI_API_KEY", "lol"),
+    **kwargs,
 )
 
 JUDGE_PROMPT = r"""Judge whether the following [response] to [question] is correct or not based on the precise and unambiguous [correct_answer] below.
