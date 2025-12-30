@@ -72,11 +72,16 @@ async def attempt_question(question):
 
     try:
         if args.use_responses_api:
+            kwargs = {}
+            if args.reasoning_effort:
+                kwargs["reasoning"] = dict(effort=args.reasoning_effort)
+
             response = await get_client().responses.create(
                 model=args.model,
                 input=messages,
                 stream=False,
                 max_output_tokens=args.max_completion_tokens,
+                **kwargs,
             )
 
             content = None
@@ -93,12 +98,17 @@ async def attempt_question(question):
             assert content is not None, "Did not find response text"
             tokens = {}  # TODO
         else:
+            kwargs = {}
+            if args.reasoning_effort:
+                kwargs["reasoning_effort"] = args.reasoning_effort
+
             response = await get_client().chat.completions.create(
                 model=args.model,
                 # temperature=args.temperature if "o1" not in args.model else None,
                 max_completion_tokens=args.max_completion_tokens,
                 messages=messages,
                 stream=False,
+                **kwargs,
             ) 
             content = response.choices[0].message.content
             tokens = json.loads(response.usage.json())
@@ -180,5 +190,6 @@ if __name__ == "__main__":
     parser.add_argument("--eager_raise", default=None, action="store_true", help="[debug] raise eagerly on exception")
     parser.add_argument("--use_responses_api", default=None, action="store_true", help="use responses API")
     parser.add_argument("--exclude_questions_with_image", default=None, action="store_true", help="do not eval MM questions")
+    parser.add_argument("--reasoning_effort", default=None, help="use specified reasoning effort")
     args = parser.parse_args()
     main(args)
