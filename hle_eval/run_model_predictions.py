@@ -8,11 +8,22 @@ from tqdm.asyncio import tqdm_asyncio
 import unittest.mock as mock
 import httpx
 
+async def log_request(request: httpx.Request):
+    print(f"\nRequest event hook: {request.method} {request.url} - Waiting for response \n{request.content}")
+
+async def log_response(response: httpx.Response):
+    request = response.request
+    print(f"\nResponse event hook: {request.method} {request.url} - Status {response.status_code} \n {response.content}")
+
 # Create custom httpx client that allows localhost connections
 http_client = httpx.AsyncClient(
     timeout=600.0,
     limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
-    transport=httpx.AsyncHTTPTransport(retries=1)
+    transport=httpx.AsyncHTTPTransport(retries=1),
+    # event_hooks={
+    #     "request": [log_request],
+    #     "response": [log_response],
+    # }
 )
 
 def get_client():
@@ -50,18 +61,54 @@ def format_message(question):
 
 async def attempt_question(question):
     messages = format_message(question)
+
+    def process_msg(msg):
+        match msg:
+            case {"role": role, "content": content}:
+                return {
+                    "type": "message",
+                    "role": role,
+                    "content": content,
+                }
+            case _:
+                raise KeyError()
+
+    messages = list(map(process_msg, messages))
+
     try:
-        response = await get_client().chat.completions.create(
+        response = await get_client().responses.create(
             model=args.model,
-            # temperature=args.temperature if "o1" not in args.model else None,
-            max_completion_tokens=args.max_completion_tokens,
-            messages=messages,
+            input=messages,
             stream=False,
-        ) 
-        content = response.choices[0].message.content
-        tokens = json.loads(response.usage.json())
+            max_output_tokens=args.max_completion_tokens,
+        )
+
+        content = None
+        for res in response.output:
+            match res:
+                case {
+                    "type": "message", 
+                    "status": "completed", 
+                    "role": "assistant", 
+                    "content": [{"type": "output_text", "text": content}, *_],
+                }:
+                    break
+
+        assert content is not None, "Did not find response text"
+        tokens = {}  # TODO
+
+        # response = await get_client().chat.completions.create(
+        #     model=args.model,
+        #     # temperature=args.temperature if "o1" not in args.model else None,
+        #     max_completion_tokens=args.max_completion_tokens,
+        #     messages=messages,
+        #     stream=False,
+        # ) 
+        # content = response.choices[0].message.content
+        # tokens = json.loads(response.usage.json())
     except Exception as e:
         print("Error:", e)
+        raise
         return None
     
     if content is None: # failed
