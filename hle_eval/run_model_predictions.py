@@ -8,6 +8,10 @@ from tqdm.asyncio import tqdm_asyncio
 import unittest.mock as mock
 import httpx
 
+lock = asyncio.Lock()
+predictions = {}
+
+    
 async def log_request(request: httpx.Request):
     print(f"\nRequest event hook: {request.method} {request.url} - Waiting for response \n{request.content}")
 
@@ -121,6 +125,13 @@ async def attempt_question(question):
     if content is None: # failed
         return None
     
+    async with lock:
+        predictions[question["id"]] = {
+            "model": args.model,
+            "response": content,
+            "usage": tokens,
+        }
+
     return question["id"], content, tokens
 
 
@@ -138,8 +149,9 @@ async def attempt_all(questions):
         results = await tqdm_asyncio.gather(*tasks)
     return results
 
-    
+
 def main(args):
+    global predictions
     assert args.num_workers > 1, "num_workers must be 2 or greater"
     dataset = load_dataset(args.dataset, split="test").to_dict() 
 
@@ -161,22 +173,24 @@ def main(args):
     else:
         predictions = {}
 
-    results = asyncio.run(attempt_all(questions))
+    try:
+        results = asyncio.run(attempt_all(questions))
 
-    # You can rerun this script multiple times if there are failed API calls
-    for result in results:
-        if result is None: # API call failed
-            continue
-        unique_id, response, usage = result
-        predictions[unique_id] = {
-            "model": args.model,
-            "response": response,
-            "usage": usage
-        }
+        # # You can rerun this script multiple times if there are failed API calls
+        # for result in results:
+        #     if result is None: # API call failed
+        #         continue
+        #     unique_id, response, usage = result
+        #     predictions[unique_id] = {
+        #         "model": args.model,
+        #         "response": response,
+        #         "usage": usage
+        #     }
 
-    # cache responses
-    with open(output_filepath, "w") as f:
-        json.dump(predictions, f, indent=4)
+    finally:
+        # cache responses
+        with open(output_filepath, "w") as f:
+            json.dump(predictions, f, indent=4)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
