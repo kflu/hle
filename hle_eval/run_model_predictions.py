@@ -19,29 +19,20 @@ async def log_response(response: httpx.Response):
     request = response.request
     print(f"\nResponse event hook: {request.method} {request.url} - Status {response.status_code} \n {response.content}")
 
-# Create custom httpx client that allows localhost connections
-http_client = httpx.AsyncClient(
-    timeout=600.0,
-    limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
-    transport=httpx.AsyncHTTPTransport(retries=1),
-    # event_hooks={
-    #     "request": [log_request],
-    #     "response": [log_response],
-    # }
-)
+
+_CLIENT: AsyncOpenAI | None = None
 
 def get_client():
-    kwargs = {}
-    if args.base_url:
-        kwargs["base_url"] = args.base_url
+    global _CLIENT
+    if not _CLIENT:
+        kwargs = {}
+        if args.base_url:
+            kwargs["base_url"] = args.base_url
 
-    client = AsyncOpenAI(
-        timeout=600.0,
-        max_retries=1,
-        http_client=http_client,
-        **kwargs,
-    )
-    return client
+        _CLIENT = AsyncOpenAI(timeout=600.0, max_retries=1, **kwargs)
+
+    return _CLIENT
+
 
 SYSTEM_PROMPT = "Your response should be in the following format:\nExplanation: {your explanation for your answer choice}\nAnswer: {your chosen answer}\nConfidence: {your confidence score between 0% and 100% for your answer}"
 
