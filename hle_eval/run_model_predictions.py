@@ -91,7 +91,7 @@ async def attempt_question(question):
                         break
 
             assert content is not None, "Did not find response text"
-            tokens = {}  # TODO
+            tokens = response.usage.to_dict() if response.usage else {}
         else:
             kwargs = {}
             if args.reasoning_effort:
