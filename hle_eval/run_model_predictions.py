@@ -155,8 +155,9 @@ def main(args):
     if args.max_samples:
         questions = questions[:args.max_samples]
     
-    output_filepath = f"hle_{os.path.basename(args.model)}.json"   
-
+    output_filepath = f"hle_{os.path.basename(args.model)}.json"
+    if args.output_prefix:
+        output_filepath = args.output_prefix + output_filepath
 
     # load only questions without responses
     if os.path.exists(output_filepath):
@@ -198,5 +199,6 @@ if __name__ == "__main__":
     parser.add_argument("--use_responses_api", default=None, action="store_true", help="use responses API")
     parser.add_argument("--exclude_questions_with_image", default=None, action="store_true", help="do not eval MM questions")
     parser.add_argument("--reasoning_effort", default=None, help="use specified reasoning effort")
+    parser.add_argument("--output_prefix", default=None, help="perfix to output file")
     args = parser.parse_args()
     main(args)
