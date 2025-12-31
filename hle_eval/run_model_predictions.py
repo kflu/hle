@@ -106,9 +106,11 @@ async def attempt_question(question):
             if args.reasoning_effort:
                 kwargs["reasoning_effort"] = args.reasoning_effort
 
+            if "o1" not in args.model:
+                kwargs["temperature"] = args.temperature
+
             response = await get_client().chat.completions.create(
                 model=args.model,
-                # temperature=args.temperature if "o1" not in args.model else None,
                 max_completion_tokens=args.max_completion_tokens,
                 messages=messages,
                 stream=False,
