@@ -24,6 +24,7 @@ from tqdm.asyncio import tqdm_asyncio
 from datasets import load_dataset
 
 import httpx
+from .prediction_utils import calculate_token_usage
 
 # client = AsyncOpenAI(timeout=300.0, max_retries=1)
 
@@ -175,15 +176,20 @@ def dump_metrics(predictions, n):
     correct = np.array(correct)
     confidence = np.array(confidence) / 100
 
+    # Print available predictions vs total questions
     # sometimes model collapses on same questions
-    if len(correct) != n:
-        print(f"Available predictions: {len(correct)} | Total questions: {n}")
+    print(f"Available predictions: {len(correct)} | Total questions: {n}")
 
+    if args.available_predictions_as_total:
+        print("NOTE: calculate metrics using available predictions rather than total questions")
+        n = len(correct)
 
     accuracy = round(100 * sum(correct) / n, 2)
     # Wald estimator, 95% confidence interval
     confidence_half_width = round(1.96 * math.sqrt(accuracy * (100 - accuracy) / n), 2)
     calibration_error = 100 * round(calib_err(confidence, correct, p='2', beta=100), 2)
+
+    calculate_token_usage(predictions)
 
     print("*** Metrics ***")
     print(f"Accuracy: {accuracy}% +/- {confidence_half_width}% | n = {n}")
@@ -205,7 +211,7 @@ def main(args):
 
     with open(args.predictions, "r") as f:
         predictions = json.load(f)
-    
+
     # load only unjudged responses
     if os.path.exists(output_filepath):
         with open(output_filepath, "r") as f:
@@ -235,5 +241,10 @@ if __name__ == "__main__":
     parser.add_argument("--num_workers", type=int, default=100, help="Async semaphore size. This depends on your rate limit.")
     parser.add_argument("--judge", type=str, default="o3-mini-2025-01-31", help="Judge model") # prev: "gpt-4o-2024-08-06"
     parser.add_argument("--exclude_questions_with_image", default=None, action="store_true", help="do not eval MM questions")
+    parser.add_argument(
+        "--available_predictions_as_total", 
+        default=None, action="store_true", 
+        help="calculate metrics using available prediction results, rather than all questions. Used for partial eval.",
+    )
     args = parser.parse_args()
     main(args)
