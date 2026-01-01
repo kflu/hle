@@ -88,7 +88,7 @@ async def extract_answer(question, correct_answer, response):
                 response_format=ExtractedAnswer, 
             ) 
         content = response.choices[0].message.parsed
-        return { 
+        return {
             "correct_answer": correct_answer,
             "model_answer": content.extracted_final_answer,
             "reasoning": content.reasoning,

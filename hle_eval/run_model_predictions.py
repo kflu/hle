@@ -29,7 +29,7 @@ def get_client():
         if args.base_url:
             kwargs["base_url"] = args.base_url
 
-        _CLIENT = AsyncOpenAI(timeout=600.0, max_retries=1, **kwargs)
+        _CLIENT = AsyncOpenAI(timeout=args.time_out_sec, max_retries=1, **kwargs)
 
     return _CLIENT
 
@@ -168,6 +168,7 @@ def main(args):
         predictions = {}
 
     try:
+        get_client()  # initialize the client singleton
         results = asyncio.run(attempt_all(questions))
 
         # # You can rerun this script multiple times if there are failed API calls
@@ -200,5 +201,6 @@ if __name__ == "__main__":
     parser.add_argument("--exclude_questions_with_image", default=None, action="store_true", help="do not eval MM questions")
     parser.add_argument("--reasoning_effort", default=None, help="use specified reasoning effort")
     parser.add_argument("--output_prefix", default=None, help="perfix to output file")
+    parser.add_argument("--time_out_sec", default=600.0, type=float, help="API client timeout in seconds")
     args = parser.parse_args()
     main(args)
