@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 r"""
 OPENAI_API_KEY=${OPENAI_API_KEY?} \
 python -m pdb hle_eval/run_judge_results.py \
@@ -24,7 +25,7 @@ from tqdm.asyncio import tqdm_asyncio
 from datasets import load_dataset
 
 import httpx
-from .prediction_utils import calculate_token_usage
+from prediction_utils import calculate_token_usage
 
 # client = AsyncOpenAI(timeout=300.0, max_retries=1)
 
