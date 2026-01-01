@@ -23,6 +23,7 @@ def main(args):
     with open(args.prediction_result, "r", encoding="utf-8") as f:
         predictions = json.load(f)
 
+    print(f"== Analyzing prediction results: {args.prediction_result}")
     calculate_token_usage(predictions)
 
 
