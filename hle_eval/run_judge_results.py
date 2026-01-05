@@ -36,19 +36,7 @@ http_client = httpx.AsyncClient(
     transport=httpx.AsyncHTTPTransport(retries=1)
 )
 
-kwargs = {}
-if base_url := os.environ.get("BASE_URL", None):
-    kwargs = dict(
-        base_url=base_url,
-        http_client=http_client,
-    )
-
-client = AsyncOpenAI(
-    timeout=600.0,
-    max_retries=1,
-    api_key=os.environ.get("OPENAI_API_KEY", "lol"),
-    **kwargs,
-)
+client: AsyncOpenAI | None = None
 
 JUDGE_PROMPT = r"""Judge whether the following [response] to [question] is correct or not based on the precise and unambiguous [correct_answer] below.
 
@@ -247,5 +235,21 @@ if __name__ == "__main__":
         default=None, action="store_true", 
         help="calculate metrics using available prediction results, rather than all questions. Used for partial eval.",
     )
+    parser.add_argument("--base_url", default=None, help="base url of the service (e.g. http://127.0.0.1:8000/v1)")
     args = parser.parse_args()
+
+    kwargs = {}
+    if base_url := (args.base_url or os.environ.get("BASE_URL", None)):
+        kwargs = dict(
+            base_url=base_url,
+            http_client=http_client,
+        )
+
+    client = AsyncOpenAI(
+        timeout=600.0,
+        max_retries=1,
+        api_key=os.environ.get("OPENAI_API_KEY", "lol"),
+        **kwargs,
+    )
+
     main(args)
