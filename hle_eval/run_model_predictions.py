@@ -17,7 +17,7 @@ predictions = {}
 
 DEFAULT_ON_PREDICTION_AVAILABLE = r"""
 BASE_DIR="$HOME/.cache/hle/logs/$MODEL/$EVAL_ID/predictions"
-mkdir -p "$BASE_DIR" 2>/dev/null && 
+mkdir -p "$BASE_DIR" && 
 cd "$BASE_DIR" &&
 cat >"${QUESTION_ID}"
 """
