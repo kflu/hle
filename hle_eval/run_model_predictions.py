@@ -9,11 +9,20 @@ from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm_asyncio
 import unittest.mock as mock
 import httpx
+import subprocess as sp
 
 lock = asyncio.Lock()
 predictions = {}
 
-    
+
+DEFAULT_ON_PREDICTION_AVAILABLE = r"""
+BASE_DIR="$HOME/.cache/hle/logs/$MODEL/$EVAL_ID/predictions"
+mkdir -p "$BASE_DIR" 2>/dev/null && 
+cd "$BASE_DIR" &&
+cat >"${QUESTION_ID}"
+"""
+
+
 async def log_request(request: httpx.Request):
     print(f"\nRequest event hook: {request.method} {request.url} - Waiting for response \n{request.content}")
 
@@ -120,14 +129,42 @@ async def attempt_question(question):
     if content is None: # failed
         return None
     
+    prediction = {
+        "model": args.model,
+        "response": content,
+        "usage": tokens,
+    }
+
     async with lock:
-        predictions[question["id"]] = {
-            "model": args.model,
-            "response": content,
-            "usage": tokens,
-        }
+        predictions[question["id"]] = prediction
+
+    if args.on_prediction_available:
+        invoke_on_prediction_available(
+            question["id"],
+            prediction, 
+            script=args.on_prediction_available,
+        )
 
     return question["id"], content, tokens
+
+
+def invoke_on_prediction_available(
+    question_id: str,
+    prediction: dict, 
+    script: str,
+) -> None:
+    sp.run(
+        shell=True,
+        input=json.dumps(prediction),
+        args=script,
+        env={
+            "MODEL": args.model,
+            "QUESTION_ID": question_id,
+            "EVAL_ID": str(os.getpid()),
+            **os.environ.copy(),
+        },
+        encoding="utf-8",
+    )
 
 
 async def attempt_all(questions):
@@ -204,5 +241,8 @@ if __name__ == "__main__":
     parser.add_argument("--reasoning_effort", default=None, help="use specified reasoning effort")
     parser.add_argument("--output_prefix", default=None, help="perfix to output file")
     parser.add_argument("--time_out_sec", default=600.0, type=float, help="API client timeout in seconds")
+    parser.add_argument("--on_prediction_available",
+                        default=DEFAULT_ON_PREDICTION_AVAILABLE,
+                        help="a script to run when prediction is available")
     args = parser.parse_args()
     main(args)
