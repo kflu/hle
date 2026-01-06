@@ -70,7 +70,7 @@ async def extract_answer(question, correct_answer, response):
     try:
         response = await client.beta.chat.completions.parse(
                 model=args.judge,
-                max_completion_tokens=4096, # overkill for judge
+                max_completion_tokens=args.max_completion_tokens,
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
@@ -236,6 +236,7 @@ if __name__ == "__main__":
         help="calculate metrics using available prediction results, rather than all questions. Used for partial eval.",
     )
     parser.add_argument("--base_url", default=None, help="base url of the service (e.g. http://127.0.0.1:8000/v1)")
+    parser.add_argument("--max_completion_tokens", default=4096, type=int, help="max num tokens per prediction used for judge")
     args = parser.parse_args()
 
     kwargs = {}
